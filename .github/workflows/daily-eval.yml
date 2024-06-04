@@ -1,0 +1,37 @@
+name: daily eval
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Runs every day at midnight UTC
+jobs:
+  build-docker-run-eval-publish-video:
+    name: build docker container and evaluate model
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout repo
+      uses: actions/checkout@v3
+    - name: build docker container
+      run: docker build -t eval-maniskill -f docker/Dockerfile .
+    - name: run eval
+      run: |
+        docker run 
+        -v $(pwd)/videos:/app/videos
+        eval-maniskill \
+        python -m mani_skill.examples.demo_random_action \
+        -e PickCube-v1 \
+        --env_id="PickCube-v1" \
+        --render-mode="rgb_array" \
+        --record-dir="videos" \
+        --num_envs=1
+    - name: configure aws credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    - name: upload to s3
+      env:
+        AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+      run: |
+        for file in *.mp4; do
+          aws s3 cp "$file" s3://${AWS_S3_BUCKET}/$(basename "$file")
+        done
