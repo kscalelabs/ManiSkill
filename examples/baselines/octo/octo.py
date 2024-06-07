@@ -20,6 +20,16 @@ from mani_skill.utils.wrappers.flatten import FlattenActionSpaceWrapper, Flatten
 from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.vector.wrappers.gymnasium import ManiSkillVectorEnv
 
+# Octo specific imports
+import cv2
+import jax
+import tensorflow_datasets as tfds
+import tqdm
+import mediapy
+import numpy as np
+from octo.model.octo_model import OctoModel
+
+
 @dataclass
 class Args:
     exp_name: Optional[str] = None
