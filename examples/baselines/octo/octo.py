@@ -12,6 +12,7 @@ import gym
 import jax
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
+import mediapy
 
 import mani_skill.envs
 from mani_skill.utils.wrappers.flatten import (
@@ -54,6 +55,10 @@ class Args:
     """number of steps to evaluate the agent for"""
     total_timesteps: int = 10000000
     """total timesteps of the experiments"""
+    chunking_horizon: int = 1
+    """observation is chunked and padded to this size"""
+    action_horizon: int = 50
+    """actions executed via receding horizon control"""
 
 
 if __name__ == "__main__":
@@ -106,8 +111,8 @@ if __name__ == "__main__":
     )
 
     env = NormalizeProprio(env, model.dataset_statistics)
-    env = HistoryWrapper(env, horizon=1)
-    env = RHCWrapper(env, exec_horizon=50)
+    env = HistoryWrapper(env, horizon=args.chunking_horizon)
+    env = RHCWrapper(env, exec_horizon=args.action_horizon)
 
     # the supply_rng wrapper supplies a new random key to sample_actions every time it's called
     policy_fn = supply_rng(
@@ -170,6 +175,7 @@ if __name__ == "__main__":
             print(f"eval_fail_rate={failures.mean()}")
 
         if writer is not None:
+            mediapy.show_video(images, fps=10)
             # log rollout video to wandb -- subsample temporally 2x for faster logging
             wandb.log(
                 {
