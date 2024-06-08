@@ -7,7 +7,7 @@ Code for running the octo algorithm is adapted from [Octo](https://github.com/oc
 to run this example we will use docker for dependency management.
 
 ```bash
-
+docker build -t octo-orin:test -f Dockerfile.orin .
 ```
 
 ## Finetune from PPO Baseline
@@ -31,13 +31,7 @@ python ppo.py --env_id="PushCube-v1" \
    --num_eval_envs=1 --num-eval-steps=1000
 ```
 
-use the finetuning notebook to convert the h5 dataset into a rlds dataset and finetune an octo model
-
-```bash
-python finetune.py --env_id="PushCube-v1" \
-  --num_envs=256 --update_epochs=8 --num_minibatches=8 \
-  --total_timesteps=1_000_000 --eval_freq=10 --num-steps=20
-```
+use the finetuning notebook `finetuning.ipynb` to convert the h5 dataset into a rlds dataset and finetune an octo model.
 
 evaluate the finetuned octo model
 
