@@ -1,6 +1,4 @@
-import argparse
 from functools import partial
-import sys
 import os
 import random
 import time
@@ -11,16 +9,16 @@ import tyro
 import gym
 import jax
 import numpy as np
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 import mediapy
 
 import mani_skill.envs
-from mani_skill.utils.wrappers.flatten import (
-    FlattenActionSpaceWrapper,
-    FlattenRGBDObservationWrapper,
-)
-from mani_skill.utils.wrappers.record import RecordEpisode
-from mani_skill.vector.wrappers.gymnasium import ManiSkillVectorEnv
+# from mani_skill.utils.wrappers.flatten import (
+#     FlattenActionSpaceWrapper,
+#     FlattenRGBDObservationWrapper,
+# )
+# from mani_skill.utils.wrappers.record import RecordEpisode
+# from mani_skill.vector.wrappers.gymnasium import ManiSkillVectorEnv
 
 from octo.model.octo_model import OctoModel
 from octo.utils.gym_wrappers import HistoryWrapper, NormalizeProprio, RHCWrapper
