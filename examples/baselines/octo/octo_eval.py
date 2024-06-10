@@ -31,8 +31,6 @@ class Args:
     """the name of this experiment"""
     seed: int = 1
     """seed of the experiment"""
-    cuda: bool = True
-    """if toggled, cuda will be enabled by default"""
     track: bool = False
     """if toggled, this experiment will be tracked with Weights and Biases"""
     wandb_project_name: str = "cleanRL"
@@ -41,9 +39,9 @@ class Args:
     """the entity (team) of wandb's project"""
     capture_video: bool = True
     """whether to capture videos of the agent performances (check out `videos` folder)"""
-    checkpoint: str = "hf://rail-berkeley/octo-small-1.5"
+    checkpoint: str = None
     """path to a pretrained checkpoint file to start evaluation/training from"""
-    language_instruction: str = "pick up the cube"
+    language_instruction: str = "pick up the red cube"
     """Octo model is conditioned on a language instruction"""
     env_id: str = "PickCube-v1"
     """the id of the environment"""

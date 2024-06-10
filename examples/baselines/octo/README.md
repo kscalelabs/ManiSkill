@@ -2,7 +2,29 @@
 
 Code for running the octo algorithm is adapted from [Octo](https://github.com/octo-models/octo).
 
-## Setup
+## Setup - x86
+
+```bash
+git clone git@github.com:kscalelabs/ManiSkill.git
+cd ManiSkill/
+conda create -n maniocto python=3.9 
+conda activate maniocto
+pip install --upgrade mani_skill
+pip install torch torchvision torchaudio
+pip install tyro
+cd ..
+git clone https://github.com/octo-models/octo
+cd octo
+pip install -e .
+pip install -r requirements.txt
+pip install tensorboardX
+pip install jax==0.4.20 jaxlib==0.4.20
+pip install flax
+pip install mediapy
+```
+
+
+## Setup - arm64
 
 to run this example we will use docker for dependency management.
 
@@ -10,26 +32,40 @@ to run this example we will use docker for dependency management.
 docker build -t octo-orin:test -f Dockerfile.orin .
 ```
 
-## Finetune from PPO Baseline
+## Train PPO Baseline
 
 
-To train, we will first need to collect a finetuning dataset for octo. We will use the pretrained PPO policy to generate some episodes:
+To train, we will first need to collect a finetuning dataset for octo. We will use a PPO policy to generate some trajectories:
 
 train a ppo policy
 
 ```bash
-python ppo.py --env_id="PushCube-v1" \
-  --num_envs=2048 --update_epochs=8 --num_minibatches=32 \
-  --total_timesteps=2_000_000 --eval_freq=10 --num-steps=20
+python ppo.py --env_id="PickCube-v1" \
+--num_envs=1024 --update_epochs=8 --num_minibatches=32 \
+--total_timesteps=10_000_000
 ```
 
 evaluate the ppo policy
 
 ```bash
-python ppo.py --env_id="PushCube-v1" \
-   --evaluate --checkpoint=path/to/model.pt \
-   --num_eval_envs=1 --num-eval-steps=1000
+python ppo.py --env_id="PickCube-v1" \
+--evaluate --checkpoint=runs/PickCube-v1__ppo__1__1718039119/final_ckpt.pt \
+--num_eval_envs=1 --num-eval-steps=1000
 ```
+
+## Evaluate Octo Model
+
+Download the Octo weights, put them in a local folder `model/octo-base-1.5`
+
+https://huggingface.co/rail-berkeley/octo-base-1.5
+
+evaluate the octo model without any finetuning (zero-shot)
+
+```bash
+python octo_eval.py --env_id="PickCube-v1" \
+--evaluate --checkpoint=model/octo-base-1.5/checkpoint
+```
+
 
 use the finetuning notebook `finetuning.ipynb` to convert the h5 dataset into a rlds dataset and finetune an octo model.
 
