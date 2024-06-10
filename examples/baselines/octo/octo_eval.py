@@ -6,23 +6,95 @@ from dataclasses import dataclass
 from typing import Optional
 import tyro
 
-import gym
+import gym as oagym
+import gymnasium as gym
 import jax
 import numpy as np
 from tensorboardX import SummaryWriter
 import mediapy
 
+# register maniskill environments
 import mani_skill.envs
-# from mani_skill.utils.wrappers.flatten import (
-#     FlattenActionSpaceWrapper,
-#     FlattenRGBDObservationWrapper,
-# )
-# from mani_skill.utils.wrappers.record import RecordEpisode
-# from mani_skill.vector.wrappers.gymnasium import ManiSkillVectorEnv
+from mani_skill.utils.wrappers.record import RecordEpisode
 
 from octo.model.octo_model import OctoModel
 from octo.utils.gym_wrappers import HistoryWrapper, NormalizeProprio, RHCWrapper
 from octo.utils.train_callbacks import supply_rng
+
+
+class ManiSkillOctoCompatWrapper(oagym.Wrapper):
+    """
+    Compatibility wrapper for ManiSkill environments and Octo policy.
+
+    maniskill panda
+    - observation space is (1, 9) representing 7 joints + 2 gripper states
+    - action space is (8,0) representing 7 joints + 1 gripper action
+
+    octo expects (7, 0) observation space and (7, 0) action space
+
+    octo has some joint space for obs and action with franka
+
+    https://github.com/octo-models/octo/blob/5eaa5c6960398925ae6f52ed072d843d2f3ecb0b/octo/data/oxe/oxe_dataset_configs.py
+
+    """
+
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+        # octo expects openai.gym spaces and maniskill uses gymnasium spaces
+        image_space: gym.Space = env.observation_space["sensor_data"]["base_camera"]["rgb"]
+        depth_space: gym.Space = env.observation_space["sensor_data"]["base_camera"]["depth"]
+        proprio_space: gym.Space = env.observation_space["agent"]["qpos"]
+        self.observation_space = oagym.spaces.Dict(
+            image_primary=oagym.spaces.Box(
+                low=image_space.low.squeeze(0),
+                high=image_space.high.squeeze(0),
+                # remove batch dimmension
+                shape=image_space.shape[1:],
+                dtype=image_space.dtype,
+            ),
+            depth_primary=oagym.spaces.Box(
+                low=depth_space.low.squeeze(0),
+                high=depth_space.high.squeeze(0),
+                shape=depth_space.shape[1:],
+                dtype=depth_space.dtype,
+            ),
+            proprio=oagym.spaces.Box(
+                low=proprio_space.low.squeeze(0),
+                high=proprio_space.high.squeeze(0),
+                shape=proprio_space.shape[1:],
+                dtype=proprio_space.dtype,
+            ),
+        )
+
+    def step(self, action):
+        obs, reward, done, trunc, info = self.env.step(action)
+        _obs = {
+            "image_primary": obs["sensor_data"]["base_camera"]["rgb"]
+            .cpu()
+            .numpy()
+            .squeeze(0),
+            "depth_primary": obs["sensor_data"]["base_camera"]["depth"]
+            .cpu()
+            .numpy()
+            .squeeze(0),
+            "proprio": obs["agent"]["qpos"].cpu().numpy().squeeze(0),
+        }
+        return obs, reward, done, trunc, info
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        _obs = {
+            "image_primary": obs["sensor_data"]["base_camera"]["rgb"]
+            .cpu()
+            .numpy()
+            .squeeze(0),
+            "depth_primary": obs["sensor_data"]["base_camera"]["depth"]
+            .cpu()
+            .numpy()
+            .squeeze(0),
+            "proprio": obs["agent"]["qpos"].cpu().numpy().squeeze(0),
+        }
+        return _obs, info
 
 
 @dataclass
@@ -39,7 +111,7 @@ class Args:
     """the entity (team) of wandb's project"""
     capture_video: bool = True
     """whether to capture videos of the agent performances (check out `videos` folder)"""
-    checkpoint: str = None
+    checkpoint: str = "examples/baselines/octo/octo-base-1.5"
     """path to a pretrained checkpoint file to start evaluation/training from"""
     language_instruction: str = "pick up the red cube"
     """Octo model is conditioned on a language instruction"""
@@ -90,23 +162,62 @@ if __name__ == "__main__":
     print(f"seed = {args.seed}")
     random.seed(args.seed)
     np.random.seed(args.seed)
-    jax.random.seed(args.seed)
 
     print(f"model = {args.checkpoint}")
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     model = OctoModel.load_pretrained(args.checkpoint)
+
+    home_pos = [
+        0.0,
+        np.pi / 8,
+        0,
+        -np.pi * 5 / 8,
+        0,
+        np.pi * 3 / 4,
+        np.pi / 4,
+        0.04,
+        0.04,
+    ]
+
+    # normalization for action space
+    stats = {
+        "action": {
+            "mask": [True, True, True, True, True, True, True, False],
+            "mean": home_pos[:8],
+            "max": [np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.1],
+            "min": [-np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -0.1],
+            "std": [np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.1],
+        },
+        "proprio": {
+            "mask": [True, True, True, True, True, True, True, False, False],
+            "mean": home_pos,
+            "max": [np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.1, 0.1],
+            "min": [-np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -0.1, -0.1],
+            "std": [np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.1, 0.1],
+        },
+    }
 
     print(f"env_id = {args.env_id}")
     env = gym.make(
         args.env_id,
         num_envs=1,
         obs_mode="rgbd",
+        # control_mode="pd_ee_delta_pos",
         control_mode="pd_joint_delta_pos",
         render_mode="rgb_array",
         sim_backend="gpu",
     )
+    env = RecordEpisode(
+        env,
+        output_dir="videos",
+        save_trajectory=False,
+        trajectory_name="trajectory",
+        max_steps_per_video=args.episode_length,
+        video_fps=30,
+    )
 
-    env = NormalizeProprio(env, model.dataset_statistics)
+    env = ManiSkillOctoCompatWrapper(env)
+    env = NormalizeProprio(env, stats)
     env = HistoryWrapper(env, horizon=args.chunking_horizon)
     env = RHCWrapper(env, exec_horizon=args.action_horizon)
 
@@ -114,7 +225,7 @@ if __name__ == "__main__":
     policy_fn = supply_rng(
         partial(
             model.sample_actions,
-            unnormalization_statistics=model.dataset_statistics["action"],
+            unnormalization_statistics=stats["action"],
         ),
     )
 

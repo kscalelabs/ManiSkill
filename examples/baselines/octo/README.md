@@ -21,6 +21,7 @@ pip install tensorboardX
 pip install jax==0.4.20 jaxlib==0.4.20
 pip install flax
 pip install mediapy
+pip install scipy==1.8.1
 ```
 
 
@@ -42,6 +43,7 @@ train a ppo policy
 ```bash
 python ppo.py --env_id="PickCube-v1" \
 --num_envs=1024 --update_epochs=8 --num_minibatches=32 \
+--control_mode="arm_pd_ee_delta_pos" \
 --total_timesteps=10_000_000
 ```
 
@@ -55,7 +57,7 @@ python ppo.py --env_id="PickCube-v1" \
 
 ## Evaluate Octo Model
 
-Download the Octo weights, put them in a local folder `model/octo-base-1.5`
+Download the Octo weights, put them in a local folder `octo-base-1.5`
 
 https://huggingface.co/rail-berkeley/octo-base-1.5
 
@@ -63,7 +65,7 @@ evaluate the octo model without any finetuning (zero-shot)
 
 ```bash
 python octo_eval.py --env_id="PickCube-v1" \
---evaluate --checkpoint=model/octo-base-1.5/checkpoint
+--checkpoint=octo-base-1.5
 ```
 
 
