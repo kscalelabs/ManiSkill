@@ -28,7 +28,7 @@ class PickCubeEnv(BaseEnv):
     @property
     def _default_sensor_configs(self):
         pose = sapien_utils.look_at(eye=[0.3, 0, 0.6], target=[-0.1, 0, 0.1])
-        return [CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)]
+        return [CameraConfig("base_camera", pose, 256, 256, np.pi / 2, 0.01, 100)]
 
     @property
     def _default_human_render_camera_configs(self):
