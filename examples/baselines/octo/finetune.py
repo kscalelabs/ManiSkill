@@ -4,7 +4,7 @@ import jax
 import optax
 import tensorflow as tf
 import tqdm
-import wandb
+
 
 from octo.data.dataset import make_single_dataset
 from octo.model.components.action_heads import L1ActionHead
@@ -23,6 +23,8 @@ BOOTSTRAP_TRAJECTORIES_PATH: str = "/home/oop/dev/ManiSkill/examples/baselines/p
 BOOTSTRAP_TRAJECTORIES_PATH_JSON: str = f"{BOOTSTRAP_TRAJECTORIES_PATH}.json"
 BOOTSTRAP_TRAJECTORIES_PATH_H5: str = f"{BOOTSTRAP_TRAJECTORIES_PATH}.h5"
 
+
+WANDB_TRACK: bool = False
 BATCH_SIZE: int = 128
 # Path to finetuning dataset, in RLDS format.
 PRETRAINED_PATH: str = None
@@ -32,6 +34,8 @@ SAVE_DIR: str = None
 DATA_DIR: str = None
 # Whether pre-trained transformer weights should be frozen
 FREEZE_TRANSFORMER: bool = False
+# Shuffle buffer size
+SHUFFLE_BUFFER_SIZE: int = 10000
 
 # Open the file
 with h5py.File(BOOTSTRAP_TRAJECTORIES_PATH_H5, 'r') as file:
@@ -57,7 +61,10 @@ initialize_compilation_cache()
 tf.config.set_visible_devices([], "GPU")
 
 # setup wandb for logging
-wandb.init(name="octo-finetune-test", project="control-modes", entity="kscalelabs")
+if WANDB_TRACK:
+    import wandb
+    
+    wandb.init(name="octo-finetune-test", project="control-modes", entity="kscalelabs")
 
 # load pre-trained model
 print("Loading pre-trained model...")
@@ -70,7 +77,7 @@ pretrained_model = OctoModel.load_pretrained(PRETRAINED_PATH)
 print("Loading finetuning dataset...")
 dataset = make_single_dataset(
     dataset_kwargs=dict(
-        name="aloha_sim_cube_scripted_dataset",
+        name="berkeley_cable_routing",
         data_dir=DATA_DIR,
         image_obs_keys={"primary": "top"},
         proprio_obs_key="state",
@@ -88,7 +95,7 @@ dataset = make_single_dataset(
 train_data_iter = (
     dataset.repeat()
     .unbatch()
-    .shuffle(10000)  # can reduce this if RAM consumption too high
+    .shuffle(SHUFFLE_BUFFER_SIZE)  # can reduce this if RAM consumption too high
     .batch(BATCH_SIZE)
     .iterator()
 )
@@ -105,7 +112,7 @@ train_data_iter = map(process_batch, train_data_iter)
 example_batch = next(train_data_iter)
 
 # load pre-training config and modify --> remove wrist cam, add proprio input, change action head
-# following Zhao et al. we use "action chunks" of length 50 and L1 loss for ALOHA
+# following Zhao et al. we use "action chunks" of length 50 and L1 loss
 config = pretrained_model.config
 del config["model"]["observation_tokenizers"]["wrist"]
 ###
@@ -121,7 +128,7 @@ config["model"]["observation_tokenizers"]["proprio"] = ModuleSpec.create(
 config["model"]["heads"]["action"] = ModuleSpec.create(
     L1ActionHead,
     action_horizon=50,
-    action_dim=14,
+    action_dim=8,
     readout_key="readout_action",
 )
 
@@ -191,10 +198,11 @@ for i in tqdm.tqdm(range(5000), total=5000, dynamic_ncols=True):
     train_state, update_info = train_step(train_state, batch)
     if (i + 1) % 100 == 0:
         update_info = jax.device_get(update_info)
-        wandb.log(
-            flax.traverse_util.flatten_dict({"training": update_info}, sep="/"),
-            step=i,
-        )
+        if WANDB_TRACK:
+            wandb.log(
+                flax.traverse_util.flatten_dict({"training": update_info}, sep="/"),
+                step=i,
+            )
     if (i + 1) % 1000 == 0:
         # save checkpoint
         train_state.model.save_pretrained(step=i, checkpoint_path=SAVE_DIR)

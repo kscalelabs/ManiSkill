@@ -77,14 +77,14 @@ convert the h5 dataset into a rlds dataset and then finetune an octo model.
 python finetune.py \
 --pretrained_path=octo-base-1.5 \
 --data_dir="../ppo/runs/pd_ee_delta_pose/test_videos/trajectory \
+--save_dir="" \
 ```
 
 evaluate the finetuned octo model
 
 ```bash
 python octo.py --env_id="PickCube-v1" \
-  --evaluate --checkpoint=path/to/model.pt \
-  --num_eval_envs=1 --num-eval-steps=1000
+--checkpoint=path/to/model.pt \
 ```
 
 and it will save videos to the `path/to/test_videos`.
