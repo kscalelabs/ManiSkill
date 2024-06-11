@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 import tyro
+from copy import deepcopy
 
 import gym as oagym
 import gymnasium as gym
@@ -167,43 +168,20 @@ if __name__ == "__main__":
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     model = OctoModel.load_pretrained(args.checkpoint)
 
-    home_pos = [
-        0.0,
-        np.pi / 8,
-        0,
-        -np.pi * 5 / 8,
-        0,
-        np.pi * 3 / 4,
-        np.pi / 4,
-        0.04,
-        0.04,
-    ]
-
-    # normalization for action space
-    stats = {
-        "action": {
-            "mask": [True, True, True, True, True, True, True, False],
-            "mean": home_pos[:8],
-            "max": [np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.1],
-            "min": [-np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -0.1],
-            "std": [np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.1],
-        },
-        "proprio": {
-            "mask": [True, True, True, True, True, True, True, False, False],
-            "mean": home_pos,
-            "max": [np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.1, 0.1],
-            "min": [-np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -0.1, -0.1],
-            "std": [np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.1, 0.1],
-        },
-    }
+    # normalization for action space 
+    # berkley cable routing is the closest to ManiSkill PickCube-v1 w/ ee deltacontrol
+    stats = model.dataset_statistics["berkeley_cable_routing"]
+    del stats["num_trajectories"]
+    del stats["num_transitions"]
+    # for now just copy action normalization for observation normalization
+    stats["proprio"] = {key: np.append(arr, arr[-1]) for key, arr in stats["action"].items()}
 
     print(f"env_id = {args.env_id}")
     env = gym.make(
         args.env_id,
         num_envs=1,
         obs_mode="rgbd",
-        # control_mode="pd_ee_delta_pos",
-        control_mode="pd_joint_delta_pos",
+        control_mode="pd_ee_delta_pos",
         render_mode="rgb_array",
         sim_backend="gpu",
     )

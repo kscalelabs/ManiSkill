@@ -45,4 +45,6 @@ imgui.ini
 .coverage*
 htmlcov/
 
+# model directories
 octo-base-1.5
+wandb/

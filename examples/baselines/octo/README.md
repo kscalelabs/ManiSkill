@@ -38,21 +38,12 @@ docker build -t octo-orin:test -f Dockerfile.orin .
 
 To train, we will first need to collect a finetuning dataset for octo. We will use a PPO policy to generate some trajectories:
 
-train a ppo policy, either ee control
+train a ppo policy
 
 ```bash
 python ppo.py --env_id="PickCube-v1" \
---num_envs=1024 --update_epochs=8 --num_minibatches=32 \
 --control_mode="pd_ee_delta_pose" \
---total_timesteps=10_000_000
-```
-
-or joint control
-
-```bash
-python ppo.py --env_id="PickCube-v1" \
 --num_envs=1024 --update_epochs=8 --num_minibatches=32 \
---control_mode="pd_joint_delta_pos" \
 --total_timesteps=10_000_000
 ```
 
@@ -60,7 +51,8 @@ evaluate the ppo policy
 
 ```bash
 python ppo.py --env_id="PickCube-v1" \
---evaluate --checkpoint=runs/PickCube-v1__ppo__1__1718039119/final_ckpt.pt \
+--control_mode="pd_ee_delta_pose" \
+--evaluate --checkpoint=runs/pd_ee_delta_pose/final_ckpt.pt \
 --num_eval_envs=1 --num-eval-steps=1000
 ```
 
@@ -77,8 +69,15 @@ python octo_eval.py --env_id="PickCube-v1" \
 --checkpoint=octo-base-1.5
 ```
 
+## Finetune Octo Model
 
-use the finetuning notebook `finetuning.ipynb` to convert the h5 dataset into a rlds dataset and finetune an octo model.
+convert the h5 dataset into a rlds dataset and then finetune an octo model.
+
+```bash
+python finetune.py \
+--pretrained_path=octo-base-1.5 \
+--data_dir="../ppo/runs/pd_ee_delta_pose/test_videos/trajectory \
+```
 
 evaluate the finetuned octo model
 
