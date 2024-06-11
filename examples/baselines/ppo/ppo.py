@@ -29,11 +29,11 @@ class Args:
     """if toggled, `torch.backends.cudnn.deterministic=False`"""
     cuda: bool = True
     """if toggled, cuda will be enabled by default"""
-    track: bool = False
+    track: bool = True
     """if toggled, this experiment will be tracked with Weights and Biases"""
-    wandb_project_name: str = "cleanRL"
+    wandb_project_name: str = "control-modes"
     """the wandb's project name"""
-    wandb_entity: str = None
+    wandb_entity: str = 'kscalelabs'
     """the entity (team) of wandb's project"""
     capture_video: bool = True
     """whether to capture videos of the agent performances (check out `videos` folder)"""
@@ -51,7 +51,6 @@ class Args:
     # Algorithm specific arguments
     env_id: str = "PickCube-v1"
     """the id of the environment"""
-    # control_mode: str = "pd_joint_delta_pos"
     control_mode: str = "arm_pd_ee_delta_pos"
     """the control mode of the environment"""
     total_timesteps: int = 10000000
@@ -162,7 +161,8 @@ if __name__ == "__main__":
     args.num_iterations = args.total_timesteps // args.batch_size
     if args.exp_name is None:
         args.exp_name = os.path.basename(__file__)[: -len(".py")]
-        run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+        # run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+        run_name = f"{args.control_mode}"
     else:
         run_name = args.exp_name
     writer = None
