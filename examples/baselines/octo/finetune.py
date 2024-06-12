@@ -25,7 +25,7 @@ BOOTSTRAP_TRAJECTORIES_PATH_H5: str = f"{BOOTSTRAP_TRAJECTORIES_PATH}.h5"
 
 
 WANDB_TRACK: bool = False
-BATCH_SIZE: int = 128
+BATCH_SIZE: int = 16
 # Path to finetuning dataset, in RLDS format.
 PRETRAINED_PATH: str = None
 # Directory for saving finetuning checkpoints.
@@ -35,7 +35,7 @@ DATA_DIR: str = None
 # Whether pre-trained transformer weights should be frozen
 FREEZE_TRANSFORMER: bool = False
 # Shuffle buffer size
-SHUFFLE_BUFFER_SIZE: int = 10000
+SHUFFLE_BUFFER_SIZE: int = 128
 
 # Open the file
 with h5py.File(BOOTSTRAP_TRAJECTORIES_PATH_H5, 'r') as file:
