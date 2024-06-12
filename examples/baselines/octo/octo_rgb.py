@@ -14,6 +14,12 @@ import tyro
 from torch.distributions.normal import Normal
 from torch.utils.tensorboard import SummaryWriter
 
+# Octo specific imports
+from octo.model.octo_model import OctoModel
+from octo.model.components.tokenizers import LowdimObsTokenizer
+from octo.utils.spec import ModuleSpec
+from octo.utils.train_utils import merge_params
+
 # ManiSkill specific imports
 import mani_skill.envs
 from mani_skill.utils.wrappers.flatten import FlattenActionSpaceWrapper, FlattenRGBDObservationWrapper
@@ -48,17 +54,19 @@ class Args:
     """if toggled, only runs evaluation with the given model checkpoint and saves the evaluation trajectories"""
     checkpoint: str = None
     """path to a pretrained checkpoint file to start evaluation/training from"""
+    octo_pretrained_path: str = "examples/baselines/octo/octo-base-1.5"
+    """path to directory for pretrained octo model"""
 
     # Algorithm specific arguments
     env_id: str = "PickCube-v1"
     """the id of the environment"""
-    control_mode: str = "arm_pd_ee_delta_pos"
+    control_mode: str = "pd_ee_delta_pos"
     """the control mode of the environment"""
     total_timesteps: int = 10000000
     """total timesteps of the experiments"""
     learning_rate: float = 3e-4
     """the learning rate of the optimizer"""
-    num_envs: int = 512
+    num_envs: int = 128
     """the number of parallel environments"""
     num_eval_envs: int = 8
     """the number of parallel evaluation environments"""
@@ -213,23 +221,70 @@ class NatureCNN(nn.Module):
 
 
 class OctoEncoder(nn.Module):
+    """Uses the Octo Model as a frozen pretrained encoder."""
     def __init__(self, sample_obs, pretrained_path):
-        from octo.model.octo_model import OctoModel
+        super().__init__()
 
-        self.model = OctoModel.load_pretrained(pretrained_path)
+        print("\n\n--- sample obs")
+        for key, value in sample_obs.items():
+            print(f"{key}: shape {value.shape} dtype {value.dtype}")
+        print("\n\n---")
 
-        self.model.create_tasks()
-        """Creates tasks dict from goals and texts.
+        def maniskillobs_to_octoobs(obs):
+            """
+                state: shape torch.Size([128, 29]) dtype torch.float32
+                rgb: shape torch.Size([128, 256, 256, 3]) dtype torch.uint8
+            to
+                state: shape torch.Size([128, 29]) dtype torch.float32
+                image_primary: shape (1, 2, 256, 256, 3) dtype uint8
+            """
+            octo_obs = {
+                "observation": {},
+            }
+            octo_obs["observation"]["state"] = np.expand_dims(obs["state"].cpu().numpy(), axis=1)
+            octo_obs["observation"]["image_primary"] = np.expand_dims(obs["rgb"].cpu().numpy(), axis=1)
+            return octo_obs
+        
+        example_batch = maniskillobs_to_octoobs(sample_obs)
 
-        Args:
-            goals: if not None, dict of arrays with shape (batch_size, *)
-            texts: if not None, list of texts of length batch_size
+        pretrained_model = OctoModel.load_pretrained(pretrained_path)
+        # load pre-training config and modify --> remove wrist cam, add state input,
+        config = pretrained_model.config
+        del config["model"]["observation_tokenizers"]["wrist"]
+        config["model"]["observation_tokenizers"]["proprio"] = ModuleSpec.create(
+            LowdimObsTokenizer,
+            n_bins=256,
+            bin_type="normal",
+            low=-2.0,
+            high=2.0,
+            obs_keys=["state"],
+        )
+        # initialize weights for modified Octo model, then merge in all applicable pre-trained weights
+        print("Updating model for new observation & action space...")
+        model = OctoModel.from_config(
+            config,
+            example_batch,
+            pretrained_model.text_processor,
+            verbose=True,
+        )
+        merged_params = merge_params(model.params, pretrained_model.params)
+        model = model.replace(params=merged_params)
+        del pretrained_model
 
-        Omit images to run the language-conditioned model, and omit texts to run the
-        goal-conditioned model.
-        """
+        print("\n\n--- example batch octo")
+        for key, value in model.example_batch["observation"].items():
+            if type(value) == np.ndarray:
+                print(f"{key}: shape {value.shape} dtype {value.dtype}")
+            else:
+                print(f"{key}: {value}")
+        print("\n\n---")
 
-        self.model.run_transformer(
+        self.tasks = model.create_tasks(texts=["pick up the red cube"])
+
+        model.run_transformer(
+            model.example_batch["observation"],
+            self.tasks,
+            model.example_batch["observation"]["timestep_pad_mask"],
             train=False,
         )
         """Runs the transformer, but does shape checking on the inputs.
@@ -265,10 +320,12 @@ class OctoEncoder(nn.Module):
 
 
 class Agent(nn.Module):
-    def __init__(self, envs, sample_obs, pretrained_path=None):
+    def __init__(self, envs, sample_obs, octo_path=None):
         super().__init__()
-        # self.feature_net = NatureCNN(sample_obs=sample_obs)
-        self.feature_net = OctoEncoder(sample_obs, pretrained_path)
+        if octo_path is not None:
+            self.feature_net = OctoEncoder(sample_obs, octo_path)
+        else:
+            self.feature_net = NatureCNN(sample_obs=sample_obs)
         # latent_size = np.array(envs.unwrapped.single_observation_space.shape).prod()
         latent_size = self.feature_net.out_features
         self.critic = nn.Sequential(
@@ -395,7 +452,7 @@ if __name__ == "__main__":
     print(f"args.num_iterations={args.num_iterations} args.num_envs={args.num_envs} args.num_eval_envs={args.num_eval_envs}")
     print(f"args.minibatch_size={args.minibatch_size} args.batch_size={args.batch_size} args.update_epochs={args.update_epochs}")
     print(f"####")
-    agent = Agent(envs, sample_obs=next_obs, pretrained_path=args.checkpoint).to(device)
+    agent = Agent(envs, sample_obs=next_obs, octo_path=args.octo_pretrained_path).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     if args.checkpoint:

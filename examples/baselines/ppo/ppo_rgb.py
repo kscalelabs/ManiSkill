@@ -52,7 +52,7 @@ class Args:
     # Algorithm specific arguments
     env_id: str = "PickCube-v1"
     """the id of the environment"""
-    control_mode: str = "arm_pd_ee_delta_pos"
+    control_mode: str = "pd_ee_delta_pos"
     """the control mode of the environment"""
     total_timesteps: int = 10000000
     """total timesteps of the experiments"""

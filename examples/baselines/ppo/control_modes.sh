@@ -1,4 +1,4 @@
-export NUM_TRAIN_STEPS=1000 # 10_000_000
+export NUM_TRAIN_STEPS=10_000_000
 
 python ppo_rgb.py --env_id="PickCube-v1" \
 --exp_name="joint_delta_rgb" \
