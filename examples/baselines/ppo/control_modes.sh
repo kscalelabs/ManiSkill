@@ -3,7 +3,7 @@ export NUM_TRAIN_STEPS=10_000_000
 python ppo_rgb.py --env_id="PickCube-v1" \
 --exp_name="joint_delta_rgb" \
 --control_mode="pd_joint_delta_pos" \
---num_envs=256 --update_epochs=8 --num_minibatches=8 \
+--num_envs=128 --update_epochs=8 --num_minibatches=8 \
 --total_timesteps=$NUM_TRAIN_STEPS \
 --wandb_project_name="control-modes" \
 --wandb_entity="kscalelabs" \
@@ -16,7 +16,7 @@ python ppo_rgb.py --env_id="PickCube-v1" \
 python ppo_rgb.py --env_id="PickCube-v1" \
 --exp_name="ee_delta_rgb" \
 --control_mode="pd_ee_delta_pose" \
---num_envs=256 --update_epochs=8 --num_minibatches=8 \
+--num_envs=128 --update_epochs=8 --num_minibatches=8 \
 --total_timesteps=$NUM_TRAIN_STEPS \
 --wandb_project_name="control-modes" \
 --wandb_entity="kscalelabs" \

@@ -230,6 +230,9 @@ class OctoEncoder(nn.Module):
             print(f"{key}: shape {value.shape} dtype {value.dtype}")
         print("\n\n---")
 
+        pretrained_model = OctoModel.load_pretrained(pretrained_path)
+        tasks = pretrained_model.create_tasks(texts=["pick up the red cube"])
+        
         def maniskillobs_to_octoobs(obs):
             """
                 state: shape torch.Size([128, 29]) dtype torch.float32
@@ -240,14 +243,18 @@ class OctoEncoder(nn.Module):
             """
             octo_obs = {
                 "observation": {},
+                "task": tasks,
             }
             octo_obs["observation"]["state"] = np.expand_dims(obs["state"].cpu().numpy(), axis=1)
             octo_obs["observation"]["image_primary"] = np.expand_dims(obs["rgb"].cpu().numpy(), axis=1)
+            example_batch["observation"]["timestep_pad_mask"] = {
+                "state": np.ones_like(obs["state"].cpu().numpy()),
+                "image_primary": np.ones_like(obs["rgb"].cpu().numpy()),
+            }
             return octo_obs
         
         example_batch = maniskillobs_to_octoobs(sample_obs)
 
-        pretrained_model = OctoModel.load_pretrained(pretrained_path)
         # load pre-training config and modify --> remove wrist cam, add state input,
         config = pretrained_model.config
         del config["model"]["observation_tokenizers"]["wrist"]
@@ -279,24 +286,12 @@ class OctoEncoder(nn.Module):
                 print(f"{key}: {value}")
         print("\n\n---")
 
-        self.tasks = model.create_tasks(texts=["pick up the red cube"])
-
-        model.run_transformer(
-            model.example_batch["observation"],
-            self.tasks,
-            model.example_batch["observation"]["timestep_pad_mask"],
+        example_out = model.run_transformer(
+            example_batch,
+            tasks,
+            example_batch["timestep_pad_mask"],
             train=False,
         )
-        """Runs the transformer, but does shape checking on the inputs.
-
-        Args:
-            observations: dictionary of arrays of shape (batch_size, window_size, *shape).
-                Shape must be consistent with self.example_batch["observation"]
-            tasks: dict of tasks of shape (batch_size, *shape)
-                Shape must be consistent with self.example_batch["task"]
-            timestep_pad_mask: (batch_size, window_size) Boolean mask that is False when the timestep corresponds to padding
-            train: whether to run in train mode
-        """
 
         self.out_features = 0
         feature_size = 256
