@@ -31,9 +31,9 @@ class Args:
     """if toggled, cuda will be enabled by default"""
     track: bool = False
     """if toggled, this experiment will be tracked with Weights and Biases"""
-    wandb_project_name: str = "control-modes"
+    wandb_project_name: str = "cleanRL"
     """the wandb's project name"""
-    wandb_entity: str = 'kscalelabs'
+    wandb_entity: str = None
     """the entity (team) of wandb's project"""
     capture_video: bool = True
     """whether to capture videos of the agent performances (check out `videos` folder)"""
@@ -161,8 +161,7 @@ if __name__ == "__main__":
     args.num_iterations = args.total_timesteps // args.batch_size
     if args.exp_name is None:
         args.exp_name = os.path.basename(__file__)[: -len(".py")]
-        # run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
-        run_name = f"{args.control_mode}"
+        run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
     else:
         run_name = args.exp_name
     writer = None

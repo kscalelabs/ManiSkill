@@ -218,12 +218,36 @@ class OctoEncoder(nn.Module):
 
         self.model = OctoModel.load_pretrained(pretrained_path)
 
+        self.model.create_tasks()
+        """Creates tasks dict from goals and texts.
+
+        Args:
+            goals: if not None, dict of arrays with shape (batch_size, *)
+            texts: if not None, list of texts of length batch_size
+
+        Omit images to run the language-conditioned model, and omit texts to run the
+        goal-conditioned model.
+        """
+
+        self.model.run_transformer(
+            train=False,
+        )
+        """Runs the transformer, but does shape checking on the inputs.
+
+        Args:
+            observations: dictionary of arrays of shape (batch_size, window_size, *shape).
+                Shape must be consistent with self.example_batch["observation"]
+            tasks: dict of tasks of shape (batch_size, *shape)
+                Shape must be consistent with self.example_batch["task"]
+            timestep_pad_mask: (batch_size, window_size) Boolean mask that is False when the timestep corresponds to padding
+            train: whether to run in train mode
+        """
+
         self.out_features = 0
         feature_size = 256
         in_channels=sample_obs["rgb"].shape[-1]
         image_size=(sample_obs["rgb"].shape[1], sample_obs["rgb"].shape[2])
         state_size=sample_obs["state"].shape[-1]
-
         # to easily figure out the dimensions after flattening, we pass a test tensor
         with torch.no_grad():
             n_flatten = cnn(sample_obs["rgb"].float().permute(0,3,1,2).cpu()).shape[1]
